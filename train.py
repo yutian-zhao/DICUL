@@ -1,5 +1,5 @@
 import argparse
-import datetime
+from datetime import datetime
 from functools import partial
 import json
 import os
@@ -52,7 +52,7 @@ def main(args):
         log_file = open(log_path, "w")
 
         # W&B
-        logger = Logger(config=config, group=group_name, name=run_name)
+        logger = Logger(config=config, group=group_name, name=run_name, use_wandb=False)
 
     # Create checkpoint directory
     if args.save_ckpt:
@@ -167,4 +167,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Run main
+    start_time = datetime.now()
     main(args)
+    print("Complete time: ", datetime.now()-start_time)

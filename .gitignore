@@ -132,3 +132,7 @@ dmypy.json
 logs/
 slurm/
 wandb/
+
+# outputs
+models/
+*.txt
