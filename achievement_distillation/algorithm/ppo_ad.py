@@ -16,6 +16,10 @@ from achievement_distillation.storage import RolloutStorage
 
 
 class Buffer:
+    '''
+    Buffer serves as a buffer across n rollouts and updates. It will be reset or overwritten afterwards.
+    Function: insert(), parse_segs(), 
+    '''
     def __init__(self, maxlen: int):
         self.segs: List[Dict[str, th.Tensor]] = deque(maxlen=maxlen)
         self.trajs: List[Dict[str, th.Tensor]] = []
@@ -373,6 +377,9 @@ class Buffer:
 
 
 class PPOADAlgorithm(BaseAlgorithm):
+    '''
+    PPOADAlgorithm is to update PPO model using storage and model to compute loss. 
+    '''
     def __init__(
         self,
         model: PPOADModel,

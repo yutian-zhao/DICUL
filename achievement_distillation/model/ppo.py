@@ -12,6 +12,10 @@ from achievement_distillation.torch_util import FanInInitReLULayer
 
 
 class PPOModel(BaseModel):
+    '''
+    Define PPOModel architechture.
+    Function act(), encode(), compute_losses()
+    '''
     def __init__(
         self,
         observation_space: spaces.Box,

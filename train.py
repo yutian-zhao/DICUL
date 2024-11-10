@@ -51,8 +51,8 @@ def main(args):
         log_path = os.path.join(log_dir, "stats.jsonl")
         log_file = open(log_path, "w")
 
-        # W&B
-        logger = Logger(config=config, group=group_name, name=run_name, use_wandb=False)
+        # W&B or python logger
+        logger = Logger(config=config, group=group_name, name=run_name, use_wandb=False, use_python_logger=True, out_dir=log_dir)
 
     # Create checkpoint directory
     if args.save_ckpt:
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_name", type=str, required=True)
-    parser.add_argument("--timestamp", type=str, default="debug")
+    parser.add_argument("--timestamp", type=str, default=datetime.now().strftime("%m%d%H%M"))
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--log_stats", action="store_true")
     parser.add_argument("--save_ckpt", action="store_true")

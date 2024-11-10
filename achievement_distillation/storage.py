@@ -10,6 +10,10 @@ from achievement_distillation.model.base import BaseModel
 
 
 class RolloutStorage:
+    '''
+    RolloutStorage serves as RL algorithm's buffer. It will be reset or overwritten every rollout and update. 
+    Functions: insert(), reset(), compute_returns(), get_data_loader()
+    '''
     def __init__(
         self,
         nstep: int,
@@ -33,15 +37,26 @@ class RolloutStorage:
         # Tensors
         self.obs = th.zeros(nstep + 1, nproc, *obs_shape, device=device)
         self.actions = th.zeros(nstep, nproc, *action_shape, device=device).long()
+        # NOTE: This refers to extrinsic rewards
         self.rewards = th.zeros(nstep, nproc, 1, device=device)
+        self.intrinsic_rewards = th.zeros(nstep, nproc, 1, device=device)
+        # NOTE: t steps, default is -1
+        self.skills = -th.ones(nstep, nproc, 1, device=device)
+        # NOTE: t steps
+        self.skill_step_counts = th.zeros(nstep, nproc, 1, device=device)
+        # NOTE: default is -1, traj to imitate, assure that idx and count id match
+        self.traj_ids = -th.zeros(nstep + 1, nproc, 2, device=device)
         self.masks = th.ones(nstep + 1, nproc, 1, device=device)
         self.vpreds = th.zeros(nstep + 1, nproc, 1, device=device)
+        self.skill_vpreds = th.zeros(nstep + 1, nproc, 1, device=device)
         self.log_probs = th.zeros(nstep, nproc, 1, device=device)
+        self.skill_log_probs = th.zeros(nstep, nproc, 1, device=device)
+        # NOTE: return to contain the sum of intrinsic and extrinsic rewards
         self.returns = th.zeros(nstep, nproc, 1, device=device)
         self.advs = th.zeros(nstep, nproc, 1, device=device)
         self.successes = th.zeros(nstep + 1, nproc, 22, device=device).long()
         self.timesteps = th.zeros(nstep + 1, nproc, 1, device=device).long()
-        self.states = th.zeros(nstep + 1, nproc, hidsize, device=device)
+        # self.states = th.zeros(nstep + 1, nproc, hidsize, device=device)
 
         # Step
         self.step = 0
@@ -50,7 +65,7 @@ class RolloutStorage:
         return getattr(self, key)
 
     def get_inputs(self, step: int):
-        inputs = {"obs": self.obs[step], "states": self.states[step]}
+        inputs = {"obs": self.obs[step], "masks": self.masks[step], "rewards": self.rewards[step-1], "skill_step_counts": self.skill_step_counts[step-1], self.skills:self.skills[step-1]}
         return inputs
 
     def insert(
@@ -68,29 +83,29 @@ class RolloutStorage:
     ):
         # Get prev successes, timesteps, and states
         prev_successes = self.successes[self.step]
-        prev_states = self.states[self.step]
+        # prev_states = self.states[self.step]
         prev_timesteps = self.timesteps[self.step]
 
         # Update timesteps
         timesteps = prev_timesteps + 1
 
         # Update states if new achievment is unlocked
-        success_conds = successes != prev_successes
-        success_conds = success_conds.any(dim=-1, keepdim=True)
-        if success_conds.any():
-            with th.no_grad():
-                next_latents = model.encode(obs)
-            states = next_latents - latents
-            states = F.normalize(states, dim=-1)
-            states = th.where(success_conds, states, prev_states)
-        else:
-            states = prev_states
+        # success_conds = successes != prev_successes
+        # success_conds = success_conds.any(dim=-1, keepdim=True)
+        # if success_conds.any():
+        #     with th.no_grad():
+        #         next_latents = model.encode(obs)
+        #     states = next_latents - latents
+        #     states = F.normalize(states, dim=-1)
+        #     states = th.where(success_conds, states, prev_states)
+        # else:
+        #     states = prev_states
 
         # Update successes, timesteps, and states if done
         done_conds = masks == 0
         successes = th.where(done_conds, 0, successes)
         timesteps = th.where(done_conds, 0, timesteps)
-        states = th.where(done_conds, 0, states)
+        # states = th.where(done_conds, 0, states)
 
         # Update tensors
         self.obs[self.step + 1].copy_(obs)
@@ -101,7 +116,7 @@ class RolloutStorage:
         self.log_probs[self.step].copy_(log_probs)
         self.successes[self.step + 1].copy_(successes)
         self.timesteps[self.step + 1].copy_(timesteps)
-        self.states[self.step + 1].copy_(states)
+        # self.states[self.step + 1].copy_(states)
 
         # Update step
         self.step = (self.step + 1) % self.nstep
@@ -112,7 +127,7 @@ class RolloutStorage:
         self.masks[0].copy_(self.masks[-1])
         self.successes[0].copy_(self.successes[-1])
         self.timesteps[0].copy_(self.timesteps[-1])
-        self.states[0].copy_(self.states[-1])
+        # self.states[0].copy_(self.states[-1])
 
         # Reset step
         self.step = 0
@@ -143,7 +158,7 @@ class RolloutStorage:
 
         # Sample batch
         obs = self.obs[:-1].view(-1, *self.obs.shape[2:])
-        states = self.states[:-1].view(-1, *self.states.shape[2:])
+        # states = self.states[:-1].view(-1, *self.states.shape[2:])
         actions = self.actions.view(-1, *self.actions.shape[2:])
         vtargs = self.returns.view(-1, *self.returns.shape[2:])
         log_probs = self.log_probs.view(-1, *self.log_probs.shape[2:])
@@ -152,7 +167,7 @@ class RolloutStorage:
         for indices in sampler:
             batch = {
                 "obs": obs[indices],
-                "states": states[indices],
+                # "states": states[indices],
                 "actions": actions[indices],
                 "vtargs": vtargs[indices],
                 "log_probs": log_probs[indices],
