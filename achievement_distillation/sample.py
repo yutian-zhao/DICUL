@@ -3,12 +3,12 @@ import numpy as np
 
 from achievement_distillation.wrapper import VecPyTorch
 from achievement_distillation.storage import RolloutStorage
-from achievement_distillation.model.base import BaseModel
+from achievement_distillation.model import PPODICULModel
 
 
 def sample_rollouts(
     venv: VecPyTorch,
-    model: BaseModel,
+    model: PPODICULModel,
     storage: RolloutStorage,
 ) -> Dict[str, np.ndarray]:
     # Set model to eval model
@@ -21,17 +21,56 @@ def sample_rollouts(
     successes = []
 
     for step in range(storage.nstep):
-        # Pass through model
-        inputs = storage.get_inputs(step)
-        outputs = model.act(**inputs)
-        actions = outputs["actions"]
-
-        # Step environment
-        obs, rewards, dones, infos = venv.step(actions)
+        """
         outputs["obs"] = obs
         outputs["rewards"] = rewards
         outputs["masks"] = 1.0 - dones
         outputs["successes"] = infos["successes"]
+        "features": features,
+        "recurrent_features": recurrent_features,
+        "latents": latents,
+        "pi_latents": pi_latents,
+        "vf_latents": vf_latents,
+        "pi_logits": pi_logits,
+        "vpreds": vpreds,
+        "skills": skills,
+        "log_probs": log_probs,
+        "hs": hs,
+        "cs": cs,
+        "skill_policy_latents": skill_policy_latents,
+        "skill_recurrent_features": skill_recurrent_features,
+        "pi_skill_latents": pi_skill_latents,
+        "vf_skill_latents": vf_skill_latents,
+        "pi_skill_logits": pi_skill_logits,
+        "skill_vpreds": skill_vpreds,
+        "actions": actions,
+        "skill_log_probs": skill_log_probs,
+        "skill_hs": skill_hs,
+        "skill_cs": skill_cs,
+        """
+        # Pass through model
+        inputs = storage.get_inputs(step)
+        outputs = model.act(**inputs)
+        skills = outputs["skills"]
+        actions = outputs["actions"]
+
+        # Step environment
+        obs, rewards, dones, infos = venv.step(actions)
+        # must be DICUL
+        master_intrinsic_reward, skill_intrinsic_reward = model.compute_intrinsic_reward(
+            mode="both",
+            next_obs=obs,
+            skills=outputs["skills"],
+            skill_hs=outputs["skill_hs"],
+            skill_cs=outputs["skill_cs"],
+            skill_recurrent_features=outputs["skill_recurrent_features"],
+        )
+        outputs["obs"] = obs
+        outputs["rewards"] = rewards
+        outputs["masks"] = 1.0 - dones
+        outputs["successes"] = infos["successes"]
+        outputs["master_intrinsic_reward"] = master_intrinsic_reward
+        outputs["skill_intrinsic_reward"] = skill_intrinsic_reward
 
         # Update storage
         storage.insert(**outputs, model=model)
@@ -59,9 +98,11 @@ def sample_rollouts(
     inputs = storage.get_inputs(step=-1)
     outputs = model.act(**inputs)
     vpreds = outputs["vpreds"]
+    skill_vpreds = outputs["skill_vpreds"]
 
     # Update storage
     storage.vpreds[-1].copy_(vpreds)
+    storage.skill_vpreds[-1].copy_(skill_vpreds)
 
     # Stack stats
     episode_lengths = np.stack(episode_lengths, axis=0).astype(np.int32)
