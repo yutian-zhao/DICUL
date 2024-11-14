@@ -396,7 +396,7 @@ class PPOADAlgorithm(BaseAlgorithm):
         vf_dist_coef: int,
     ):
         super().__init__(model)
-        self.model: PPOADModel
+        self.model: PPOADModel # NOTE: No assginment?
 
         # PPO params
         self.ppo_nepoch = ppo_nepoch

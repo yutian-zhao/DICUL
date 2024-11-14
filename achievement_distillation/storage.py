@@ -175,7 +175,8 @@ class RolloutStorage:
         self.successes[self.step + 1].copy_(successes)
         self.timesteps[self.step + 1].copy_(timesteps)
         self.skill_step_counts[self.step].copy_(skill_step_counts)
-        self.traj_ids[self.step + 1].copy_(traj_ids)
+        # NOTE: consider step+1
+        self.traj_ids[self.step].copy_(traj_ids)
 
         self.rewards[self.step].copy_(rewards)
         self.master_intrinsic_rewards[self.step].copy_(master_intrinsic_rewards)
