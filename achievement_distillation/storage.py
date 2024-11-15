@@ -75,8 +75,8 @@ class RolloutStorage:
         self.timesteps = th.zeros(nstep + 1, nproc, 1, device=device).long()
         # NOTE: t steps
         self.skill_step_counts = th.zeros(nstep, nproc, 1, device=device).long()
-        # NOTE: default is -1, traj to imitate, assure that idx and count id match
-        self.traj_ids = -th.ones(nstep, nproc, 2, device=device).long()
+        # NOTE: default is -1, traj to imitate, count id 
+        self.traj_ids = -th.ones(nstep, nproc, 1, device=device).long()
 
         # NOTE: This refers to extrinsic rewards
         self.rewards = th.zeros(nstep, nproc, 1, device=device)

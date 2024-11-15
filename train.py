@@ -157,6 +157,7 @@ def main(args):
 
 
 if __name__ == "__main__":
+    # python train.py --exp_name ppo_dicul --log_stats --save_ckpt
     # Parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_name", type=str, required=True)

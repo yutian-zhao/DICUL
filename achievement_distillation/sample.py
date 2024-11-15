@@ -63,7 +63,7 @@ def sample_rollouts(
             skills=outputs["skills"],
             skill_hs=outputs["skill_hs"],
             skill_cs=outputs["skill_cs"],
-            skill_recurrent_features=outputs["skill_recurrent_features"],
+            skill_recurrent_features=outputs["skill_recurrent_features"], # master policy also uses skill features because encoder should encode skill trajectories
         )
         outputs["obs"] = obs
         outputs["rewards"] = rewards
