@@ -12,9 +12,9 @@ from crafter.env import Env
 from crafter.recorder import VideoRecorder
 from stable_baselines3.common.vec_env.dummy_vec_env import DummyVecEnv
 
-from achievement_distillation.algorithm import *
-from achievement_distillation.model import *
-from achievement_distillation.wrapper import VecPyTorch
+from dicul.algorithm import *
+from dicul.model import *
+from dicul.wrapper import VecPyTorch
 
 
 def main(args):

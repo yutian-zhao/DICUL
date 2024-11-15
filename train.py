@@ -14,13 +14,13 @@ from crafter.env import Env
 from stable_baselines3.common.vec_env.subproc_vec_env import SubprocVecEnv
 from stable_baselines3.common.vec_env.vec_monitor import VecMonitor
 
-from achievement_distillation.algorithm import *
-from achievement_distillation.constant import TASKS
-from achievement_distillation.logger import Logger
-from achievement_distillation.model import *
-from achievement_distillation.sample import sample_rollouts
-from achievement_distillation.storage import RolloutStorage
-from achievement_distillation.wrapper import VecPyTorch
+from dicul.algorithm import *
+from dicul.constant import TASKS
+from dicul.logger import Logger
+from dicul.model import *
+from dicul.sample import sample_rollouts
+from dicul.storage import RolloutStorage
+from dicul.wrapper import VecPyTorch
 
 
 def main(args):
@@ -95,6 +95,7 @@ def main(args):
     algorithm_cls = getattr(sys.modules[__name__], config["algorithm_cls"])
     algorithm: BaseAlgorithm = algorithm_cls(
         model=model,
+        device=device,
         **config["algorithm_kwargs"],
     )
 

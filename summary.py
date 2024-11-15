@@ -5,7 +5,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from achievement_distillation.constant import TASKS
+from dicul.constant import TASKS
 
 
 def main(args):
