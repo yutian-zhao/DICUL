@@ -39,6 +39,7 @@ def main(args):
     th.set_num_threads(1)
     cuda = th.cuda.is_available()
     device = th.device("cuda:0" if cuda else "cpu")
+    # device = th.device("cpu")
 
     # Create logger
     group_name = f"{args.exp_name}-{args.timestamp}"
@@ -73,10 +74,12 @@ def main(args):
         nproc=config["nproc"],
         observation_space=venv.observation_space,
         action_space=venv.action_space,
-        hidsize=config["model_kwargs"]["hidsize"],
+        outsize=config["model_kwargs"]["impala_kwargs"]["outsize"],
         device=device,
     )
     storage.obs[0].copy_(obs)
+    # Note the initial states are mark as done
+    storage.masks[0] = 0
 
     # Create model
     model_cls = getattr(sys.modules[__name__], config["model_cls"])

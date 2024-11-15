@@ -74,8 +74,8 @@ class RolloutStorage:
         self.successes = th.zeros(nstep + 1, nproc, 22, device=device).long()
         self.timesteps = th.zeros(nstep + 1, nproc, 1, device=device).long()
         # NOTE: t steps
-        self.skill_step_counts = th.zeros(nstep, nproc, 1, device=device).long()
-        # NOTE: default is -1, traj to imitate, count id 
+        self.skill_step_counts = th.zeros(nstep+1, nproc, 1, device=device).long()
+        # NOTE: default is -1, traj to imitate, count id
         self.traj_ids = -th.ones(nstep, nproc, 1, device=device).long()
 
         # NOTE: This refers to extrinsic rewards
@@ -111,7 +111,7 @@ class RolloutStorage:
             "obs": self.obs[step],
             "masks": self.masks[step],
             "rewards": self.rewards[step - 1],
-            "skill_step_counts": self.skill_step_counts[step - 1],
+            "skill_step_counts": self.skill_step_counts[step - 1] if step else self.skill_step_counts[-2], # NOTE: skill_step_counts[-1] is the current step
             "traj_ids": self.traj_ids[step - 1],
             "skills": self.skills[step - 1],
             "hs": self.hs[step - 1],
@@ -208,15 +208,23 @@ class RolloutStorage:
 
     def compute_returns(self, gamma: float, gae_lambda: float):
         # Compute returns
+        # TODO: intrinsic reward beta
+        beta = 0.05
         gae = 0
         skill_gae = 0
         skill_masks = self.skill_step_counts== 1 # check no successive terminations
         for step in reversed(range(self.rewards.shape[0])):
             delta = (
-                self.rewards[step] + self.master_intrinsic_rewards[step] + gamma * self.vpreds[step + 1] * self.masks[step + 1] - self.vpreds[step]
+                self.rewards[step]
+                + beta * self.master_intrinsic_rewards[step]
+                + gamma * self.vpreds[step + 1] * self.masks[step + 1]
+                - self.vpreds[step]
             )
             skill_delta = (
-                self.rewards[step] + self.skill_intrinsic_rewards[step] + gamma * self.skill_vpreds[step + 1] * skill_masks[step + 1] - self.skill_vpreds[step]
+                self.rewards[step]
+                + beta * self.skill_intrinsic_rewards[step]
+                + gamma * self.skill_vpreds[step + 1] * skill_masks[step + 1]
+                - self.skill_vpreds[step]
             )
             gae = delta + gamma * gae_lambda * self.masks[step + 1] * gae
             skill_gae = skill_delta + gamma * gae_lambda * skill_masks[step + 1] * skill_gae

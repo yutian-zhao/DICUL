@@ -90,15 +90,17 @@ class RNN(nn.Module):
                 elif self.layer.bias is not None:
                     weight.data *= 0
 
-        def forward(self, x: th.Tensor, h: th.Tensor=None, c: th.Tensor=None):
-            if self.norm is not None:
-                x = self.norm(x)
-            if h and c:
-                x, (h, c) = self.layer(x, (h, c))
-            else:
-                x, (h, c) = self.layer(x)
-            if self.use_activation:
-                x = F.relu(x, inplace=True)
-                h = F.relu(h, inplace=True)
-                c = F.relu(classmethod, inplace=True)
-            return x, (h, c)
+    def forward(self, x: th.Tensor, h: th.Tensor=None, c: th.Tensor=None):
+        if self.norm is not None:
+            x = self.norm(x)
+        assert not (h is not None and c is None)
+        assert not (h is None and c is not None)
+        if h is not None and c is not None:
+            x, (h, c) = self.layer(x, (h, c))
+        else:
+            x, (h, c) = self.layer(x)
+        if self.use_activation:
+            x = F.relu(x, inplace=True)
+            h = F.relu(h, inplace=True)
+            c = F.relu(classmethod, inplace=True)
+        return x, (h, c)

@@ -26,7 +26,9 @@ class CategoricalActionHead(nn.Module):
         return logits
 
     def log_prob(self, logits: th.Tensor, actions: th.Tensor) -> th.Tensor:
-        log_prob = th.gather(logits, dim=-1, index=actions)
+        dim = len(logits.shape)-1
+        log_prob = th.gather(logits, dim=dim, index=actions)
+        # NOTE: (N,1,D) -> (N, 1, 1)
         return log_prob
 
     def entropy(self, logits: th.Tensor) -> th.Tensor:

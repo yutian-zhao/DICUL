@@ -69,11 +69,11 @@ def sample_rollouts(
         outputs["rewards"] = rewards
         outputs["masks"] = 1.0 - dones
         outputs["successes"] = infos["successes"]
-        outputs["master_intrinsic_reward"] = master_intrinsic_reward
-        outputs["skill_intrinsic_reward"] = skill_intrinsic_reward
+        outputs["master_intrinsic_rewards"] = master_intrinsic_reward
+        outputs["skill_intrinsic_rewards"] = skill_intrinsic_reward
 
         # Update storage
-        storage.insert(**outputs, model=model)
+        storage.insert(**outputs)
 
         # Update stats
         for i, done in enumerate(dones):
@@ -99,10 +99,12 @@ def sample_rollouts(
     outputs = model.act(**inputs)
     vpreds = outputs["vpreds"]
     skill_vpreds = outputs["skill_vpreds"]
+    skill_step_counts = outputs["skill_step_counts"]
 
     # Update storage
     storage.vpreds[-1].copy_(vpreds)
     storage.skill_vpreds[-1].copy_(skill_vpreds)
+    storage.skill_step_counts[-1].copy_(skill_step_counts)
 
     # Stack stats
     episode_lengths = np.stack(episode_lengths, axis=0).astype(np.int32)

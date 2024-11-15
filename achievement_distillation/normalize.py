@@ -8,14 +8,14 @@ class NormalizeEwma(nn.Module):
     def __init__(
         self,
         insize: int,
-        norm_axes: int = 1,
+        # norm_axes: int = 1,
         beta: float = 0.99,
         epsilon: float = 1e-2,
     ):
         super().__init__()
 
         # Params
-        self.norm_axes = norm_axes
+        # self.norm_axes = norm_axes
         self.beta = beta
         self.epsilon = epsilon
 
@@ -33,8 +33,8 @@ class NormalizeEwma(nn.Module):
     def forward(self, x: th.Tensor) -> th.Tensor:
         if self.training:
             x_detach = x.detach()
-            batch_mean = x_detach.mean(dim=tuple(range(self.norm_axes)))
-            batch_mean_sq = (x_detach**2).mean(dim=tuple(range(self.norm_axes)))
+            batch_mean = x_detach.mean(dim=tuple(range(len(x.shape)-1)))
+            batch_mean_sq = (x_detach**2).mean(dim=tuple(range(len(x.shape)-1)))
 
             weight = self.beta
             self.running_mean.mul_(weight).add_(batch_mean * (1.0 - weight))
@@ -42,14 +42,14 @@ class NormalizeEwma(nn.Module):
             self.debiasing_term.mul_(weight).add_(1.0 * (1.0 - weight))
 
         mean, var = self.running_mean_var()
-        mean = mean[(None,) * self.norm_axes]
-        var = var[(None,) * self.norm_axes]
+        mean = mean[(None,) * (len(x.shape)-1)]
+        var = var[(None,) * (len(x.shape)-1)]
         x = (x - mean) / th.sqrt(var)
         return x
 
     def denormalize(self, x: th.Tensor) -> th.Tensor:
         mean, var = self.running_mean_var()
-        mean = mean[(None,) * self.norm_axes]
-        var = var[(None,) * self.norm_axes]
+        mean = mean[(None,) * (len(x.shape)-1)]
+        var = var[(None,) * (len(x.shape)-1)]
         x = x * th.sqrt(var) + mean
         return x
