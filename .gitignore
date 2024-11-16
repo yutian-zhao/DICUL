@@ -132,7 +132,9 @@ dmypy.json
 logs/
 slurm/
 wandb/
+.vscode/
 
 # outputs
 models/
 *.txt
+*.jsonl

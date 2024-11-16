@@ -86,6 +86,7 @@ def main(args):
     model: BaseModel = model_cls(
         observation_space=venv.observation_space,
         action_space=venv.action_space,
+        device=device,
         **config["model_kwargs"],
     )
     model = model.to(device)
