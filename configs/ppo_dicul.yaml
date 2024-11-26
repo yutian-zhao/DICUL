@@ -1,0 +1,48 @@
+save_freq: 50
+
+nstep: 512
+nproc: 8
+nepoch: 250
+gamma: 0.95
+gae_lambda: 0.65
+min_skill_len: 5
+max_skill_len: 25
+
+model_cls: PPODICULModel
+model_kwargs:
+  hidsize: 1024
+  max_skill_len: 25
+  impala_kwargs:
+    chans: [64, 128, 128]
+    outsize: 256
+    nblock: 2
+    post_pool_groups: 1
+    init_norm_kwargs:
+      batch_norm: False
+      group_norm_groups: 1
+  dense_init_norm_kwargs:
+    layer_norm: True
+  vqvae_kwargs:
+    K: 64
+    D: 32
+    beta: 0.25
+    hidsize: 1024
+
+algorithm_cls: PPODICULAlgorithm
+algorithm_kwargs:
+  ppo_nepoch: 3
+  ppo_nbatch: 20
+  clip_param: 0.2
+  vf_loss_coef: 0.5
+  ent_coef: 0.01
+  lr: 3.0e-4
+  max_grad_norm: 0.5
+  aux_freq: 4
+  aux_nepoch: 4
+  aux_nbatch: 20
+  pi_dist_coef: 1.0
+  vf_dist_coef: 1.0
+  max_skill_len: 25
+  min_skill_len: 5
+  nstep: 512
+  nproc: 8

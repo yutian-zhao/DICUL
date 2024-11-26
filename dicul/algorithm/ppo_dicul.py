@@ -53,6 +53,7 @@ class TrajBuffer:
 
         self.master_policy_data = defaultdict(list)
         self.skill_policy_data = defaultdict(list)
+        self.skill_stats = defaultdict(list)
         self.aux_skill_policy_data = []
         # save padded traj data
         self.master_policy_padded_data = {}
@@ -79,6 +80,7 @@ class TrajBuffer:
             "masks",
             "traj_ids",
             "master_intrinsic_rewards",
+            "skill_intrinsic_rewards",  # DEBUG
             "rewards",
         ]
 
@@ -132,7 +134,7 @@ class TrajBuffer:
                 data_p_split = list(data_p_split)
                 if self.skill_policy_buffer[s_entry][p] is not None:
                     data_p_split[0] = th.cat([self.skill_policy_buffer[s_entry][p], data_p_split[0]], dim=0)
-                
+
                 if len(data_p_split[0]) == 0:
                     data_p_split.pop(0)
 
@@ -150,19 +152,19 @@ class TrajBuffer:
 
         self.aux_skill_policy_new_data_end = len(self.aux_skill_policy_data)
 
-
         # prepare aux data
         # skill traj + choosen skill
         # add selected skill traj
         # NOTE: must done before new trajs storation
-        min_id = self.pbuffer.min_id()
-        for traj_id in self.skill_policy_data["traj_ids"]:
-            traj_id = traj_id[0].squeeze()
-            if traj_id >= 0 and traj_id >= min_id:
-                self.aux_skill_policy_data.append(self.pbuffer.trajs[traj_id - min_id])
+        # TODO: is adding multiple same trajs problematic
+        # DEBUG
+        # min_id = self.pbuffer.min_id()
+        # for traj_id in self.skill_policy_data["traj_ids"]:
+        #     traj_id = traj_id[0].squeeze()
+        #     if traj_id >= 0 and traj_id >= min_id:
+        #         self.aux_skill_policy_data.append(self.pbuffer.trajs[traj_id - min_id])
 
         # add the beginning of the next skill to the end of the current skill
-        # TODO: check id and indices match for traj_id
         # TODO: ensure indices not change, i.e., no insertion during processing and updating
         # for i, traj in enumerate(skill_step_counts_p):
         assert (
@@ -175,17 +177,22 @@ class TrajBuffer:
             # Save novel trajs
             len_traj = len(skill_traj)
             max_extrinsic_reward = th.max(self.skill_policy_data["rewards"][i])
-            reach_probability = th.prod(self.skill_policy_data["skill_log_probs"][i])
+            reach_probability = th.prod(th.exp(self.skill_policy_data["skill_log_probs"][i]))
             random_reach_probability = (1 / self.num_actions) ** len_traj
             max_rec_error = th.max(self.skill_policy_data["master_intrinsic_rewards"][i])
+            max_intrinsic_reward = th.max(self.skill_policy_data["skill_intrinsic_rewards"][i])
+            # save traj data
+            self.skill_stats["max_master_intrinsic_rewards_per_skill_traj"].append(max_rec_error.item())
+            self.skill_stats["max_skill_intrinsic_rewards_per_skill_traj"].append(max_intrinsic_reward.item())
+            self.skill_stats["reach_probability_ratio"].append(th.minimum(th.tensor(2), (reach_probability / (random_reach_probability+1e-8))).item())
+
             if len_traj - 1 >= self.min_skill_len and (
                 max_extrinsic_reward > 0.1 or (max_rec_error > self.mean_rec_error.mean)
             ):
                 # reach_probability<random_reach_probability
                 # TODO! record
-                priority = (
-                    max_extrinsic_reward + 10 * 0.7 + (1 - max_rec_error)
-                )  # +0.9*(1-random_reach_probability)
+                # DEBUG
+                priority = max_extrinsic_reward  # + 10 * 0.7 + (1 - max_rec_error)  # +0.9*(1-random_reach_probability)
                 ptraj = PriorityTraj(
                     priority, max_extrinsic_reward, max_rec_error, reach_probability, skill_traj
                 )
@@ -227,7 +234,10 @@ class TrajBuffer:
         lens = []  # must be on cpu
         max_len = -1
         for i in list_of_seqs:
-            len_i = len(i)
+            if isinstance(i, th.Tensor):
+                len_i = i.shape[0]
+            else:
+                len_i = len(i)
             lens.append(len_i)
             if len_i > max_len:
                 max_len = len_i
@@ -267,6 +277,7 @@ class TrajBuffer:
         self.skill_policy_data.clear()
         self.master_policy_padded_data.clear()
         self.skill_policy_padded_data.clear()
+        self.skill_stats.clear()
 
     def reset_aux_data(
         self,
@@ -344,11 +355,21 @@ class PPODICULAlgorithm(BaseAlgorithm):
         pi_loss_epoch = 0
         vf_loss_epoch = 0
         entropy_epoch = 0
+        # NOTE: because drop_last=False, this is not accurate
+        # TODO!: change nupdate
         nupdate = 0
         skill_pi_loss_epoch = 0
         skill_vf_loss_epoch = 0
         skill_entropy_epoch = 0
         skill_nupdate = 0
+        train_stats_dict = defaultdict(list)
+        train_stats_dict["max_master_intrinsic_rewards_per_skill_traj"] = self.buffer.skill_stats[
+            "max_master_intrinsic_rewards_per_skill_traj"
+        ]
+        train_stats_dict["max_skill_intrinsic_rewards_per_skill_traj"] = self.buffer.skill_stats[
+            "max_skill_intrinsic_rewards_per_skill_traj"
+        ]
+        train_stats_dict["reach_probability_ratio"] = self.buffer.skill_stats["reach_probability_ratio"]
 
         for _ in range(self.ppo_nepoch):
             # Get data loader
@@ -380,6 +401,11 @@ class PPODICULAlgorithm(BaseAlgorithm):
                 skill_vf_loss_epoch += skill_vf_loss.item()
                 skill_entropy_epoch += skill_entropy.item()
                 skill_nupdate += 1
+
+                # update stats dict
+                train_stats_dict["skill_pi_loss"].append(skill_pi_loss.item() / len(indices))
+                train_stats_dict["skill_vf_loss"].append(skill_vf_loss.item() / len(indices))
+                train_stats_dict["skill_entropy"].append(skill_entropy.item() / len(indices))
 
                 self.optimizer.zero_grad()
                 skill_loss.backward()
@@ -418,6 +444,11 @@ class PPODICULAlgorithm(BaseAlgorithm):
                 entropy_epoch += entropy.item()
                 nupdate += 1
 
+                # update stats dict
+                train_stats_dict["pi_loss"].append(pi_loss.item() / len(indices))
+                train_stats_dict["vf_loss"].append(vf_loss.item() / len(indices))
+                train_stats_dict["entropy"].append(entropy.item() / len(indices))
+
         # Compute average stats
         pi_loss_epoch /= nupdate
         vf_loss_epoch /= nupdate
@@ -454,24 +485,25 @@ class PPODICULAlgorithm(BaseAlgorithm):
             skill_vf_dist_epoch = 0
             aux_nupdate = 0
 
-            # TODO: reset
+            # pad data
+            masks = th.nn.utils.rnn.pad_sequence(
+                [th.ones(len(traj), device=self.device) for traj in self.buffer.aux_skill_policy_data],
+                padding_value=0,
+                batch_first=True,
+            )
+            # NOTE: long or float
+            assert masks.ndim <= 3
+            lengths = th.sum(masks, dim=1).long().to("cpu")
+            if lengths.ndim > 1:
+                lengths = lengths.squeeze(-1)
+
+            self.buffer.aux_skill_policy_data = th.nn.utils.rnn.pad_sequence(
+                self.buffer.aux_skill_policy_data, padding_value=0, batch_first=True
+            )
+
             # TODO: print buffer size
             for _ in range(self.aux_nepoch):
-                # pad data
-                masks = th.nn.utils.rnn.pad_sequence(
-                    [th.ones(len(traj), device=self.device) for traj in self.buffer.aux_skill_policy_data],
-                    padding_value=0,
-                    batch_first=True,
-                )
-                # NOTE: long or float
-                assert masks.ndim <=3
-                lengths = th.sum(masks, dim=1).long().to("cpu")
-                if lengths.ndim > 1:
-                    lengths = lengths.squeeze(-1)
 
-                self.buffer.aux_skill_policy_data = th.nn.utils.rnn.pad_sequence(
-                    self.buffer.aux_skill_policy_data, padding_value=0, batch_first=True
-                )
                 data_loader = self.buffer.aux_skill_policy_data_loader(self.aux_nbatch)
                 for indices in data_loader:
                     losses = self.model.compute_aux_losses(
@@ -481,12 +513,19 @@ class PPODICULAlgorithm(BaseAlgorithm):
                         old_model,
                     )
 
+                    rec_loss = losses["rec_loss"]
+                    pi_dist = losses["pi_dist"]
+                    vf_dist = losses["vf_dist"]
+                    skill_pi_dist = losses["skill_pi_dist"]
+                    skill_vf_dist = losses["skill_vf_dist"]
+
+                    # TODO!: parameter tuning
                     loss = (
-                        losses["rec_loss"]
-                        + +self.pi_dist_coef * losses["pi_dist"] * 0.5
-                        + self.vf_dist_coef * losses["vf_dist"] * 0.5
-                        + self.pi_dist_coef * losses["skill_pi_dist"] * 0.5
-                        + self.vf_dist_coef * losses["skill_vf_dist"] * 0.5
+                        rec_loss
+                        + self.pi_dist_coef * pi_dist * 0.1
+                        + self.vf_dist_coef * vf_dist * 0.1
+                        + self.pi_dist_coef * skill_pi_dist * 0.1
+                        + self.vf_dist_coef * skill_vf_dist * 0.1
                     )
 
                     # Update parameters
@@ -498,12 +537,20 @@ class PPODICULAlgorithm(BaseAlgorithm):
                     self.aux_optimizer.step()
 
                     # Update stats
-                    aux_loss_epoch += losses["rec_loss"].item()
-                    pi_dist_epoch += losses["pi_dist"].item()
-                    vf_dist_epoch += losses["vf_dist"].item()
-                    skill_pi_dist_epoch += losses["skill_pi_dist"].item()
-                    skill_vf_dist_epoch += losses["skill_vf_dist"].item()
+                    aux_loss_epoch += rec_loss.item()
+                    pi_dist_epoch += pi_dist.item()
+                    vf_dist_epoch += vf_dist.item()
+                    skill_pi_dist_epoch += skill_pi_dist.item()
+                    skill_vf_dist_epoch += skill_vf_dist.item()
                     aux_nupdate += 1
+
+                    # update stats dict
+                    train_stats_dict["rec_loss"].append(rec_loss.item() / len(indices))
+                    train_stats_dict["pi_dist"].append(pi_dist.item() / len(indices))
+                    train_stats_dict["vf_dist"].append(vf_dist.item() / len(indices))
+                    train_stats_dict["skill_pi_dist"].append(skill_pi_dist.item() / len(indices))
+                    train_stats_dict["skill_vf_dist"].append(skill_vf_dist.item() / len(indices))
+
             # Compute average stats
             aux_loss_epoch /= aux_nupdate
             pi_dist_epoch /= aux_nupdate
@@ -513,7 +560,7 @@ class PPODICULAlgorithm(BaseAlgorithm):
 
             # Define aux train stats
             aux_train_stats = {
-                "match_loss": aux_loss_epoch,
+                "aux_loss": aux_loss_epoch,
                 "pi_dist": pi_dist_epoch,
                 "vf_dist": vf_dist_epoch,
                 "skill_pi_dist": skill_pi_dist_epoch,
@@ -538,4 +585,4 @@ class PPODICULAlgorithm(BaseAlgorithm):
 
         self.buffer.reset_policy_data()
 
-        return train_stats
+        return train_stats, train_stats_dict

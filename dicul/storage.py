@@ -58,17 +58,18 @@ class RolloutStorage:
             vpreds
             skills 
             log_probs
-            hs
-            cs
+            hs (only last)
+            cs (only last)
             
             # "pi_skill_logits": pi_skill_logits,
             skill_vpreds
             actions
             skill_log_probs
-            skill_hs
-            skill_cs,
+            skill_hs (only last)
+            skill_cs (only last)
             
         """
+        # TODO: Replace hs and cs buffer*2 with a keeper
         self.obs = th.zeros(nstep + 1, nproc, *obs_shape, device=device)
         self.masks = th.ones(nstep + 1, nproc, 1, device=device)
         self.successes = th.zeros(nstep + 1, nproc, 22, device=device).long()
@@ -209,7 +210,8 @@ class RolloutStorage:
     def compute_returns(self, gamma: float, gae_lambda: float):
         # Compute returns
         # TODO: intrinsic reward beta
-        beta = 0.05
+        # DEBUG
+        beta = 1
         gae = 0
         skill_gae = 0
         skill_masks = self.skill_step_counts== 1 # check no successive terminations

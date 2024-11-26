@@ -58,8 +58,9 @@ class PrioritizedBuffer:
         self.update_priority(ind)
 
     def update_priority(self, ind):
+        # DEBUG
         self.priorities[ind] = (
-            10 * (0.8 ** self.visit_counts[ind]) + (1 - self.rec_errors[ind]) + self.r_es[ind]
+            10 * (0.8 ** self.visit_counts[ind]) + self.r_es[ind] # + (1 - self.rec_errors[ind])
         )  # 0.9*(1-self.reach_probs[ind])
 
     def sample(self, n):
@@ -119,34 +120,58 @@ if __name__ == "__main__":
     # done_steps_p = sorted(done_steps_p)
     # print(done_steps_p)
 
-    a = th.ones((3, 2))
-    a[1] = 0
-    b = th.tensor([[1, 0, 0], [0, 0, 1]])
-    print(a[b])
+    # a = th.ones((3, 2))
+    # a[1] = 0
+    # b = th.tensor([[1, 0, 0], [0, 0, 1]])
+    # print(a[b])
+    from torch.distributions.multivariate_normal import MultivariateNormal
+    def compute_gaussian(x, mu, cov):
+        d = th.tensor(x.shape[0])
+        print(th.det(cov))
+        coef = 1 / th.sqrt((2 * th.pi)**d * th.det(cov))
+        exp_prob = th.exp(-0.5 * th.sum((x - mu) * th.mv(th.inverse(cov), (x - mu))))
+        return coef*exp_prob
+    # mean = th.Tensor([[1, 2, 3], [4, 5, 6]])
+    # mean = th.Tensor([[1, 2], [3, 4]])
+    mean = th.arange(256)
+    cov1 = th.eye(256)
+    # cov1 = th.eye(2)
+    # cov2 = th.Tensor([[1, 1, 1], [1, 2, 2], [1, 2, 3]])
+    # cov = th.stack([cov1, cov1], 0)
+    # print(cov.shape)
+    distrib = MultivariateNormal(loc=mean, covariance_matrix=cov1)
+    print(distrib.log_prob(mean))
+    # print(compute_gaussian(th.Tensor([1, 2]), th.Tensor([1, 2]), cov1))
     exit()
-    rnn = th.nn.LSTM(10, 20, 2)
-    encoder = th.nn.Linear(10, 10)
-    linear1 = th.nn.Linear(20, 20)
-    linear2 = th.nn.Linear(20, 20)
-    optimizer = optim.Adam(rnn.parameters())
-    input = th.randn(5, 3, 10)
-    input = encoder(input)
-    output, (hn, cn) = rnn(input)
-    output, _ = rnn(input, (hn, cn))
-    loss_function = th.nn.GaussianNLLLoss()
-    loss1 = loss_function(linear1(output), th.ones_like(output), th.eye(output))
-    print(loss1)
-    output, (hn, cn) = rnn(input, (th.ones_like(hn), th.ones_like(cn)))
-    output, _ = rnn(input, (hn, cn))
-    loss2 = th.nn.functional.mse_loss(linear2(output), th.ones_like(output))
-    loss = loss1 + loss2
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-    # print(prev_hn is hn)
-    # output, (hn, cn) = rnn(input,(prev_hn, prev_cn))
-    # loss = th.nn.functional.mse_loss(output, th.ones_like(output))
+
+
+
+
+
+    # rnn = th.nn.LSTM(10, 20, 2)
+    # encoder = th.nn.Linear(10, 10)
+    # linear1 = th.nn.Linear(20, 20)
+    # linear2 = th.nn.Linear(20, 20)
+    # optimizer = optim.Adam([{"params":rnn.parameters()}, {"params":encoder.parameters()}, {"params":linear1.parameters()}, {"params":linear2.parameters()}])
+    # input = th.randn(5, 3, 10)
+    # input = encoder(input)
+    # input2 = th.randn(5, 3, 10)
+    # input2 = encoder(input2)
+    # output, (hn, cn) = rnn(input)
+    # loss_function = th.nn.MSELoss()
+    # loss1 = loss_function(linear1(output), th.ones_like(output))
+    # # print(loss1)
+    # output2, (hn, cn) = rnn(input2)
+    # # output, _ = rnn(input, (hn, cn))
+    # loss2 = loss_function(linear2(output2), th.ones_like(output))
+    # loss = loss1 + loss2
+    # optimizer.zero_grad()
     # loss.backward()
     # optimizer.step()
-    # output, (hn, cn) = rnn(input,(hn, cn))
-    print(output)
+    # # print(prev_hn is hn)
+    # # output, (hn, cn) = rnn(input,(prev_hn, prev_cn))
+    # # loss = th.nn.functional.mse_loss(output, th.ones_like(output))
+    # # loss.backward()
+    # # optimizer.step()
+    # # output, (hn, cn) = rnn(input,(hn, cn))
+    # print(output)

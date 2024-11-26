@@ -444,25 +444,27 @@ class PPODICULModel(BaseModel):
         master_intrinsic_reward = None
         skill_intrinsic_reward = None
         if mode == "master" or mode == "both":
-            _, prob = self.vqvae.loss(
+            nll, _, prob = self.vqvae.losspair(
                 next_recurrent_features,
                 skill_recurrent_features,
-                next_recurrent_features - skill_recurrent_features,
+                next_recurrent_features, # - skill_recurrent_features # DEBUG
                 if_prob=True,
             )
             # lower the prob, higher the reconstruction error, higher reward
-            master_intrinsic_reward = 1 - prob
+            # DEBUG
+            master_intrinsic_reward = th.tanh(nll) # 1 - prob
             if mode == "master":
                 return master_intrinsic_reward
         if mode == "skill" or mode == "both":
             # TODO: check zs[skill] and others to squeeze
-            _, prob = self.vqvae.decoder_loss(
+            nll, prob = self.vqvae.decoder_loss(
                 skills,
                 skill_recurrent_features,
-                next_recurrent_features - skill_recurrent_features,
+                next_recurrent_features, # - skill_recurrent_features # DEBUG
                 if_prob=True,
             )
-            skill_intrinsic_reward = prob
+            # DEBUG
+            skill_intrinsic_reward = 1-th.tanh(nll) # prob
             if mode == "skill":
                 return skill_intrinsic_reward
         return (master_intrinsic_reward, skill_intrinsic_reward)
@@ -560,9 +562,9 @@ class PPODICULModel(BaseModel):
             )
 
         rec_loss, _ = self.vqvae.loss(
-            recurrent_features[:, 1:],
-            recurrent_features[:, :-1],
-            (recurrent_features[:, 1:] - recurrent_features[:, :-1]).detach(),
+            recurrent_features[:, 1:].detach(),
+            recurrent_features[:, :-1].detach(), # DEBUG
+            (recurrent_features[:, 1:]).detach(), #  - recurrent_features[:, :-1])
             reduction="none",
         )
         rec_loss = self.masked_average(rec_loss, masks[:, 1:])
@@ -605,9 +607,9 @@ class PPODICULModel(BaseModel):
         outputs = self.forward(traj)
         recurrent_features = outputs["recurrent_features"]
         rec_loss, _ = self.vqvae.loss(
-            recurrent_features[:, 1:],
-            recurrent_features[:, :-1],
-            (recurrent_features[:, 1:] - recurrent_features[:, :-1]).detach(),
+            recurrent_features[:, 1:].detach(),
+            recurrent_features[:, :-1].detach(), # DEBUG
+            (recurrent_features[:, 1:]).detach(), # - recurrent_features[:, :-1])
             reduction="none",
         )
         return th.max(rec_loss)

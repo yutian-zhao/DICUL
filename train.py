@@ -21,9 +21,13 @@ from dicul.model import *
 from dicul.sample import sample_rollouts
 from dicul.storage import RolloutStorage
 from dicul.wrapper import VecPyTorch
+from dicul.plot import plot_stats
 
 
 def main(args):
+    # DEBUG
+    th.autograd.set_detect_anomaly(True)
+
     # Load config file
     config_file = open(f"configs/{args.exp_name}.yaml", "r")
     config = yaml.load(config_file, Loader=yaml.FullLoader)
@@ -49,11 +53,16 @@ def main(args):
         # JSON
         log_dir = os.path.join("./logs", run_name)
         os.makedirs(log_dir, exist_ok=True)
+        plot_dir = os.path.join(log_dir, "plots")
+        os.makedirs(plot_dir, exist_ok=True)
         log_path = os.path.join(log_dir, "stats.jsonl")
         log_file = open(log_path, "w")
 
         # W&B or python logger
         logger = Logger(config=config, group=group_name, name=run_name, use_wandb=False, use_python_logger=True, out_dir=log_dir)
+
+        # If python logger
+        logger.log(config, -1)
 
     # Create checkpoint directory
     if args.save_ckpt:
@@ -111,7 +120,7 @@ def main(args):
         storage.compute_returns(config["gamma"], config["gae_lambda"])
 
         # Update models
-        train_stats = algorithm.update(storage)
+        train_stats, train_stats_dict = algorithm.update(storage)
 
         # Reset storage
         storage.reset()
@@ -154,6 +163,12 @@ def main(args):
             # W&B
             logger.log(train_stats, epoch)
             logger.log(eval_stats, epoch)
+
+            plot_stats(
+            train_stats_dict,
+            f"Training statistics at epoch {epoch}",
+            save_path=os.path.join(plot_dir, f"epoch_{epoch:03}.png"),
+        )
 
         # Save checkpoint
         if args.save_ckpt and epoch % config["save_freq"] == 0:
