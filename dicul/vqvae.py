@@ -70,6 +70,7 @@ class VQVAE(th.nn.Module):
             ),
         )
         self.book = VQCodebook(K, D)
+        self.K = K
         self.D = D
         self.beta = beta
 
@@ -95,17 +96,62 @@ class VQVAE(th.nn.Module):
     def decoder_loss(self, code_id, obs, targets, if_prob=False):
         # TODO: detach
         # NOTE: codes come after obs
+        # (B,L,D), (B,L,D)
+        obs_ndim = obs.ndim
+        obs_shape = obs.shape
         outputs = self.decoder(th.cat([obs, self.book.book.weight.data[code_id].detach()], axis=-1))
         if if_prob:
-            nll = th.nn.functional.mse_loss(outputs, targets)  # +const
+            # nll = th.nn.functional.mse_loss(outputs, targets)  # +const
             gaussian = th.distributions.multivariate_normal.MultivariateNormal(
                 outputs, th.eye(outputs.shape[-1], device=outputs.device)
             )
-            prob = th.exp(gaussian.log_prob(targets))  # used as reward
+            logp = gaussian.log_prob(targets)  # used as reward # (B, L)
+
+            # sum = None
+            # for i in range(self.K):
+            #     code = self.book.book.weight.data[i].detach()
+            #     # (B,L,D)
+            #     for _ in range(obs_ndim-1):
+            #         code = code.unsqueeze(0)
+            #     code = code.expand(*obs_shape[:-1], self.D)
+            #     outputs_i = self.decoder(th.cat([obs, code], axis=-1))
+            #     gaussian = th.distributions.multivariate_normal.MultivariateNormal(
+            #         outputs_i, th.eye(outputs_i.shape[-1], device=outputs_i.device)
+            #     )
+            #     logp_i = gaussian.log_prob(targets)
+            #     # intrinsic_reward = np.log(num_reps + 1) - np.log(1 + np.exp(np.clip(logp_altz - logp.reshape(1, -1), -50, 50)).sum(axis=0))
+            #     if sum is not None:
+            #         sum += th.exp(th.clip(logp_i-logp, -50, 50))
+            #     else:
+            #         sum = th.exp(th.clip(logp_i-logp, -50, 50))
+            # intrinsic_reward = th.log(th.tensor(self.K)) - th.log(sum) # (B,N)
+
+            # (B,L,K,D)
+            obs = obs.unsqueeze(-2)
+            targets = targets.unsqueeze(-2)
+            code = self.book.book.weight.data.detach().unsqueeze(0).unsqueeze(0)
+            logp = logp.unsqueeze(-1)
+            target_shape = list(obs.shape)
+            target_shape[-2] = self.K
+            obs = obs.expand(*target_shape)
+            targets = targets.expand(*target_shape)
+            code = code.expand(*target_shape[:-1], self.D)
+            logp = logp.expand(*target_shape[:-1])
+
+            outputs_i = self.decoder(th.cat([obs, code], axis=-1))
+            gaussian = th.distributions.multivariate_normal.MultivariateNormal(
+                outputs_i, th.eye(outputs_i.shape[-1], device=outputs_i.device)
+            )
+            logp_i = gaussian.log_prob(targets) # (B,L,K)
+            intrinsic_reward = th.log(th.tensor(self.K)) - th.log(th.exp(th.clip(logp_i - logp, -50, 50)).sum(axis=-1))
+
+            # assert intrinsic_reward == intrinsic_reward_
+
+            return intrinsic_reward
         else:
             nll = th.nn.functional.mse_loss(outputs, targets)  # +const
-            prob = None
-        return nll, prob
+            # prob = None
+            return nll
 
     def losspair(self, next_obs, obs, targets, if_prob=False, reduction="mean"):
         targets = targets.detach()
@@ -116,6 +162,7 @@ class VQVAE(th.nn.Module):
             gaussian = th.distributions.multivariate_normal.MultivariateNormal(
                 outputs, th.eye(outputs.shape[-1], device=outputs.device)
             )
+            # TODO: DEBUG: use log prob
             prob = th.exp(gaussian.log_prob(targets))  # used as reward
         else:
             nll = th.nn.functional.mse_loss(outputs, targets, reduction=reduction)  # +const

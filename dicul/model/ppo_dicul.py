@@ -449,22 +449,23 @@ class PPODICULModel(BaseModel):
                 skill_recurrent_features,
                 next_recurrent_features, # - skill_recurrent_features # DEBUG
                 if_prob=True,
+                reduction="none", # DEBUG
             )
             # lower the prob, higher the reconstruction error, higher reward
             # DEBUG
-            master_intrinsic_reward = th.tanh(nll) # 1 - prob
+            master_intrinsic_reward = th.tanh(th.sum(nll, dim=-1)) # 1 - prob
             if mode == "master":
                 return master_intrinsic_reward
         if mode == "skill" or mode == "both":
             # TODO: check zs[skill] and others to squeeze
-            nll, prob = self.vqvae.decoder_loss(
+            skill_intrinsic_reward = self.vqvae.decoder_loss(
                 skills,
                 skill_recurrent_features,
                 next_recurrent_features, # - skill_recurrent_features # DEBUG
                 if_prob=True,
             )
             # DEBUG
-            skill_intrinsic_reward = 1-th.tanh(nll) # prob
+            # skill_intrinsic_reward = 1-th.tanh(nll) # prob
             if mode == "skill":
                 return skill_intrinsic_reward
         return (master_intrinsic_reward, skill_intrinsic_reward)

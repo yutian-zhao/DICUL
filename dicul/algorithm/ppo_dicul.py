@@ -403,9 +403,9 @@ class PPODICULAlgorithm(BaseAlgorithm):
                 skill_nupdate += 1
 
                 # update stats dict
-                train_stats_dict["skill_pi_loss"].append(skill_pi_loss.item() / len(indices))
-                train_stats_dict["skill_vf_loss"].append(skill_vf_loss.item() / len(indices))
-                train_stats_dict["skill_entropy"].append(skill_entropy.item() / len(indices))
+                train_stats_dict["skill_pi_loss"].append(skill_pi_loss.item())
+                train_stats_dict["skill_vf_loss"].append(skill_vf_loss.item())
+                train_stats_dict["skill_entropy"].append(skill_entropy.item())
 
                 self.optimizer.zero_grad()
                 skill_loss.backward()
@@ -445,9 +445,9 @@ class PPODICULAlgorithm(BaseAlgorithm):
                 nupdate += 1
 
                 # update stats dict
-                train_stats_dict["pi_loss"].append(pi_loss.item() / len(indices))
-                train_stats_dict["vf_loss"].append(vf_loss.item() / len(indices))
-                train_stats_dict["entropy"].append(entropy.item() / len(indices))
+                train_stats_dict["pi_loss"].append(pi_loss.item())
+                train_stats_dict["vf_loss"].append(vf_loss.item())
+                train_stats_dict["entropy"].append(entropy.item())
 
         # Compute average stats
         pi_loss_epoch /= nupdate
@@ -545,11 +545,11 @@ class PPODICULAlgorithm(BaseAlgorithm):
                     aux_nupdate += 1
 
                     # update stats dict
-                    train_stats_dict["rec_loss"].append(rec_loss.item() / len(indices))
-                    train_stats_dict["pi_dist"].append(pi_dist.item() / len(indices))
-                    train_stats_dict["vf_dist"].append(vf_dist.item() / len(indices))
-                    train_stats_dict["skill_pi_dist"].append(skill_pi_dist.item() / len(indices))
-                    train_stats_dict["skill_vf_dist"].append(skill_vf_dist.item() / len(indices))
+                    train_stats_dict["rec_loss"].append(rec_loss.item())
+                    train_stats_dict["pi_dist"].append(pi_dist.item())
+                    train_stats_dict["vf_dist"].append(vf_dist.item())
+                    train_stats_dict["skill_pi_dist"].append(skill_pi_dist.item())
+                    train_stats_dict["skill_vf_dist"].append(skill_vf_dist.item())
 
             # Compute average stats
             aux_loss_epoch /= aux_nupdate
