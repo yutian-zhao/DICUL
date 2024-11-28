@@ -10,6 +10,7 @@ from dicul.impala_cnn import ImpalaCNN
 from dicul.action_head import CategoricalActionHead
 from dicul.mse_head import ScaledMSEHead
 from dicul.torch_util import FanInInitReLULayer, RNN
+from dicul.dqn_cnn import DQNCNN
 from dicul.vqvae import VQVAE
 from dicul.prioritized_buffer import (
     PrioritizedBuffer,
@@ -35,19 +36,22 @@ class PPODICULModel(BaseModel):
         mse_head_kwargs: Dict = {},
         vqvae_kwargs: Dict = {},
         max_skill_len: Dict = {},
+        # rnn_init_norm_kwargs: Dict = {},
     ):
         super().__init__(observation_space, action_space)
 
         # Encoder
         self.obs_shape = getattr(self.observation_space, "shape")
-        self.enc = ImpalaCNN(
-            self.obs_shape,
-            dense_init_norm_kwargs=dense_init_norm_kwargs,
-            **impala_kwargs,
-        )
+        # self.enc = ImpalaCNN(
+        #     self.obs_shape,
+        #     dense_init_norm_kwargs=dense_init_norm_kwargs,
+        #     **impala_kwargs,
+        # )
+        
         self.outsize = impala_kwargs["outsize"]
+        self.enc = DQNCNN(observation_space, self.outsize)
 
-        self.rnn = RNN(self.outsize, self.outsize, init_scale=1.4)
+        self.rnn = RNN(self.outsize, self.outsize) #, **rnn_init_norm_kwargs)
 
         self.vqvae = VQVAE(insize=self.outsize, outsize=self.outsize, **vqvae_kwargs)
 
@@ -181,6 +185,7 @@ class PPODICULModel(BaseModel):
             skill_step_counts[termination] = 1
             traj_ids[termination] = -1
             # epsilon = random.uniform(0, 1)
+            # DEBUG
             if_sample = (th.rand_like(termination.float()) * termination.int()) > 0.8
             num_sample = th.sum(if_sample.int())
             if th.any(if_sample) and len(self.pbuffer) >= num_sample:
@@ -521,7 +526,9 @@ class PPODICULModel(BaseModel):
 
         # Compute policy loss
         new_log_probs = policy_head.log_prob(pi_logits, actions)
-        ratio = th.exp(new_log_probs - log_probs)
+        # TODO: PROBLEM: DEBUG: Should we clip log_prob to [-50, 50]
+        # exp to inf
+        ratio = th.exp(th.clip(new_log_probs - log_probs, -50, 50))
         ratio_clipped = th.clamp(ratio, 1.0 - clip_param, 1.0 + clip_param)
         pi_loss = self.masked_average(-th.min(advs * ratio, advs * ratio_clipped), masks)
 

@@ -15,12 +15,15 @@ from dicul.torch_util import FanInInitReLULayer
 class VQCodebook(th.nn.Module):
     """https://pytorch.org/docs/stable/generated/th.nn.Embedding.html"""
 
-    def __init__(self, num_embeddings: int, embedding_dim: int):
+    def __init__(self, num_embeddings: int, embedding_dim: int, init_scale: float = 1.0):
         super().__init__()
         self.K = num_embeddings
         self.D = embedding_dim
         self.book = th.nn.Embedding(self.K, self.D)
         self.book.weight.data.uniform_(-1 / self.K, 1 / self.K)
+        self.book.weight.data *= init_scale / self.book.weight.norm(
+            dim=tuple(range(1, self.book.weight.ndim)), p=2, keepdim=True
+        )
 
     def rdistances(self, x: th.Tensor) -> th.Tensor:
         """return relative distance to each code (y_i) for each x
@@ -45,13 +48,15 @@ class VQVAE(th.nn.Module):
         D=128,
         K=64,
         beta=0.25,
+        layer_norm: bool = False,
     ):
         super().__init__()
         self.encoder = FanInInitReLULayer(
             insize,
             D,
             layer_type="linear",
-            init_scale=1.4,
+            # init_scale=1.4,
+            layer_norm=layer_norm,
         )
         # NOTE: inputs are codes and obs
         self.decoder = nn.Sequential(
@@ -59,13 +64,14 @@ class VQVAE(th.nn.Module):
                 D + insize,
                 hidsize,
                 layer_type="linear",
-                init_scale=1.4,
+                # init_scale=1.4,
+                layer_norm=layer_norm,
             ),
             FanInInitReLULayer(
                 hidsize,
                 outsize,
                 layer_type="linear",
-                init_scale=1.4,
+                # init_scale=1.4,
                 use_activation=False,
             ),
         )

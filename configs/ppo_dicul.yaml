@@ -27,6 +27,7 @@ model_kwargs:
     D: 32
     beta: 0.25
     hidsize: 1024
+    layer_norm: False
 
 algorithm_cls: PPODICULAlgorithm
 algorithm_kwargs:

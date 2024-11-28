@@ -60,7 +60,7 @@ class RNN(nn.Module):
         batch_norm_kwargs: Dict = {},
         group_norm_groups: Optional[int] = None,
         layer_norm: bool = False,
-        use_activation: bool = False, # no activation
+        use_activation: bool = False, # no activation should be used in lstm
         dropout: float = 0.2,
         batch_first=True,
         **layer_kwargs,
@@ -91,8 +91,6 @@ class RNN(nn.Module):
                     weight.data *= 0
 
     def forward(self, x: th.Tensor, h: th.Tensor=None, c: th.Tensor=None):
-        if self.norm is not None:
-            x = self.norm(x)
         assert not (h is not None and c is None)
         assert not (h is None and c is not None)
         if h is not None and c is not None:
@@ -102,5 +100,5 @@ class RNN(nn.Module):
         if self.use_activation:
             x = F.relu(x, inplace=True)
             h = F.relu(h, inplace=True)
-            c = F.relu(classmethod, inplace=True)
+            c = F.relu(c, inplace=True)
         return x, (h, c)
